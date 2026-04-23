@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arquitectura AWS — Marketplace de Hospedaje</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f1117;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    color: #e8eaf0;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .page-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+  .page-sub {
+    text-align: center;
+    font-size: 12px;
+    color: #7c8490;
+    margin-bottom: 20px;
+  }
+  .diagram {
+    position: relative;
+    width: 1280px;
+    margin: 0 auto;
+  }
+  /* ── SVG canvas ─────────────────────────────── */
+  .arch-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* ── Domain containers ──────────────────────── */
+  .domain-box {
+    rx: 10;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 3;
+  }
+  .domain-label {
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    letter-spacing: 0.8px;
+  }
+
+  /* ── Service cards ──────────────────────────── */
+  .svc-card {
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+    cursor: pointer;
+    transition: filter 0.2s;
+  }
+  .svc-card:hover {
+    filter: drop-shadow(0 4px 14px rgba(255,153,0,0.35));
+  }
+  .svc-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    text-anchor: middle;
+    fill: #e8eaf0;
+  }
+  .svc-sublabel {
+    font-size: 8px;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    text-anchor: middle;
+    fill: #8a9bb0;
+  }
+
+  /* ── Arrows ─────────────────────────────────── */
+  .arrow-sync  { stroke: #4db8ff; stroke-width: 1.5; fill: none; }
+  .arrow-async { stroke: #ff9a3c; stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; }
+  .arrow-event { stroke: #e84d9e; stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; }
+  .arrow-data  { stroke: #3ecf8e; stroke-width: 1.5; fill: none; }
+  .arrow-label {
+    font-size: 8px;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    fill: #7c8490;
+  }
+
+  /* ── Performance badge ──────────────────────── */
+  .perf-badge {
+    font-size: 12px;
+    font-weight: 800;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    fill: #3ecf8e;
+  }
+  .perf-sub {
+    font-size: 9px;
+    font-family: 'Amazon Ember', 'Segoe UI', sans-serif;
+    fill: #3ecf8e;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Arquitectura AWS Serverless — Marketplace de Hospedaje</div>
+<div class="page-sub">SOA por dominios · Serverless · Multi-AZ · Multi-Region DR · &lt;800ms búsqueda · Saga orquestada</div>
+
+<div class="diagram">
+<svg class="arch-svg" viewBox="0 0 1280 860" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <!-- Arrow markers -->
+  <marker id="ah-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#4db8ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="ah-orange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#ff9a3c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="ah-pink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#e84d9e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="ah-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#3ecf8e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="ah-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="#6b7a8d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- BACKGROUND GRID (subtle)                               -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+  <path d="M40 0L0 0L0 40" fill="none" stroke="#1a1f2e" stroke-width="0.5"/>
+</pattern>
+<rect width="1280" height="860" fill="url(#grid)" opacity="0.5"/>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TIER LABELS (left side)                                -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<text x="8" y="108" font-size="8" fill="#3b4556" font-weight="700" font-family="monospace" transform="rotate(-90,8,108)">EDGE</text>
+<text x="8" y="230" font-size="8" fill="#3b4556" font-weight="700" font-family="monospace" transform="rotate(-90,8,230)">ENTRADA</text>
+<text x="8" y="500" font-size="8" fill="#3b4556" font-weight="700" font-family="monospace" transform="rotate(-90,8,500)">SERVICIOS</text>
+<text x="8" y="720" font-size="8" fill="#3b4556" font-weight="700" font-family="monospace" transform="rotate(-90,8,720)">DATOS</text>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TIER SEPARATORS                                        -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<line x1="22" y1="152" x2="1260" y2="152" stroke="#1e2535" stroke-width="1"/>
+<line x1="22" y1="282" x2="1260" y2="282" stroke="#1e2535" stroke-width="1"/>
+<line x1="22" y1="658" x2="1260" y2="658" stroke="#1e2535" stroke-width="1"/>
+<line x1="22" y1="766" x2="1260" y2="766" stroke="#1e2535" stroke-width="1"/>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ████  CAPA 0: EDGE GLOBAL                          ████ -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- Web/Mobile User -->
+<g class="svc-card" transform="translate(570,18)">
+  <!-- Person icon -->
+  <circle cx="70" cy="16" r="10" fill="#2d3548" stroke="#4a5568" stroke-width="1"/>
+  <circle cx="70" cy="13" r="5" fill="#7c8db0"/>
+  <path d="M58 30 Q70 22 82 30" fill="#7c8db0"/>
+  <!-- Monitor -->
+  <rect x="56" y="32" width="16" height="11" rx="2" fill="none" stroke="#7c8db0" stroke-width="1.2"/>
+  <line x1="64" y1="43" x2="64" y2="47" stroke="#7c8db0" stroke-width="1.2"/>
+  <!-- Phone -->
+  <rect x="76" y="34" width="8" height="12" rx="1.5" fill="none" stroke="#7c8db0" stroke-width="1.2"/>
+  <text x="70" y="60" class="svc-label">Web / Mobile</text>
+</g>
+
+<!-- Route 53 -->
+<g class="svc-card" transform="translate(240,22)">
+  <circle cx="34" cy="28" r="26" fill="#1a2535" stroke="#8b3e3e" stroke-width="1.5"/>
+  <!-- Route53 globe icon simplified -->
+  <circle cx="34" cy="28" r="16" fill="none" stroke="#e05252" stroke-width="1.5"/>
+  <ellipse cx="34" cy="28" rx="8" ry="16" fill="none" stroke="#e05252" stroke-width="1"/>
+  <line x1="18" y1="28" x2="50" y2="28" stroke="#e05252" stroke-width="1"/>
+  <line x1="20" y1="20" x2="48" y2="20" stroke="#e05252" stroke-width="0.8"/>
+  <line x1="20" y1="36" x2="48" y2="36" stroke="#e05252" stroke-width="0.8"/>
+  <text x="34" y="64" class="svc-label">Route 53</text>
+  <text x="34" y="74" class="svc-sublabel">DNS + Failover</text>
+</g>
+
+<!-- CloudFront -->
+<g class="svc-card" transform="translate(840,22)">
+  <circle cx="34" cy="28" r="26" fill="#1a2535" stroke="#7a4a8b" stroke-width="1.5"/>
+  <path d="M22 28 Q28 18 34 28 Q40 38 46 28" fill="none" stroke="#b07fce" stroke-width="2"/>
+  <path d="M18 28 Q26 14 34 28 Q42 42 50 28" fill="none" stroke="#b07fce" stroke-width="1" opacity="0.5"/>
+  <circle cx="34" cy="28" r="4" fill="#b07fce"/>
+  <text x="34" y="64" class="svc-label">CloudFront + WAF</text>
+  <text x="34" y="74" class="svc-sublabel">CDN · Shield Adv.</text>
+</g>
+
+<!-- Cognito -->
+<g class="svc-card" transform="translate(1060,22)">
+  <circle cx="34" cy="28" r="26" fill="#1a2535" stroke="#6b3e8b" stroke-width="1.5"/>
+  <circle cx="34" cy="24" r="8" fill="none" stroke="#9b6fd4" stroke-width="2"/>
+  <path d="M20 42 Q27 32 34 40 Q41 32 48 42" fill="none" stroke="#9b6fd4" stroke-width="2"/>
+  <text x="34" y="64" class="svc-label">Cognito</text>
+  <text x="34" y="74" class="svc-sublabel">Auth + JWT</text>
+</g>
+
+<!-- Lambda@Edge -->
+<g class="svc-card" transform="translate(1140,22)">
+  <circle cx="34" cy="28" r="26" fill="#1a2535" stroke="#8b6b3e" stroke-width="1.5"/>
+  <path d="M22 38 L30 18 L34 28 L38 20 L46 38" fill="none" stroke="#f0a84e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="34" y="64" class="svc-label">Lambda@Edge</text>
+  <text x="34" y="74" class="svc-sublabel">JWT en PoP</text>
+</g>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ████  CAPA 1: ENTRADA                              ████ -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- API Gateway HTTP -->
+<g class="svc-card" transform="translate(430,164)">
+  <rect x="0" y="0" width="110" height="74" rx="10" fill="#1e2b1a" stroke="#4a8b3e" stroke-width="1.5"/>
+  <!-- API GW icon -->
+  <rect x="38" y="12" width="34" height="22" rx="4" fill="none" stroke="#6ecf5e" stroke-width="1.5"/>
+  <line x1="44" y1="20" x2="66" y2="20" stroke="#6ecf5e" stroke-width="1"/>
+  <line x1="44" y1="26" x2="60" y2="26" stroke="#6ecf5e" stroke-width="1"/>
+  <line x1="30" y1="23" x2="38" y2="23" stroke="#6ecf5e" stroke-width="1" stroke-dasharray="2 2"/>
+  <line x1="72" y1="23" x2="80" y2="23" stroke="#6ecf5e" stroke-width="1" stroke-dasharray="2 2"/>
+  <text x="55" y="50" class="svc-label">API Gateway</text>
+  <text x="55" y="61" class="svc-sublabel">HTTP API</text>
+  <text x="55" y="70" class="svc-sublabel">Rate limit · Auth</text>
+</g>
+
+<!-- API Gateway WebSocket -->
+<g class="svc-card" transform="translate(740,164)">
+  <rect x="0" y="0" width="110" height="74" rx="10" fill="#1e2b1a" stroke="#4a8b3e" stroke-width="1.5"/>
+  <rect x="38" y="12" width="34" height="22" rx="4" fill="none" stroke="#6ecf5e" stroke-width="1.5"/>
+  <path d="M42 23 Q55 15 68 23" fill="none" stroke="#6ecf5e" stroke-width="1"/>
+  <path d="M42 23 Q55 31 68 23" fill="none" stroke="#6ecf5e" stroke-width="1"/>
+  <text x="55" y="50" class="svc-label">API Gateway</text>
+  <text x="55" y="61" class="svc-sublabel">WebSocket API</text>
+  <text x="55" y="70" class="svc-sublabel">Mensajeria RT</text>
+</g>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ████  DOMINIOS DE MICROSERVICIOS                   ████ -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- ── MS-1 BÚSQUEDA ──────────────────────────────────── -->
+<rect x="28" y="294" width="310" height="350" rx="10" fill="#0e1e14" stroke="#2d6b3e" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="42" y="314" class="domain-label" fill="#3ecf8e">MS-1 · BÚSQUEDA / LISTADOS</text>
+
+<!-- Lambda BFF -->
+<g class="svc-card" transform="translate(50,322)">
+  <rect x="0" y="0" width="100" height="70" rx="8" fill="#1a2a1e" stroke="#3e7b4e" stroke-width="1"/>
+  <circle cx="50" cy="24" r="16" fill="#232f1e" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M42 30 L48 16 L52 24 L56 18 L62 30" fill="none" stroke="#f0a84e" stroke-width="1.8" stroke-linecap="round"/>
+  <text x="50" y="52" class="svc-label">Lambda BFF</text>
+  <text x="50" y="62" class="svc-sublabel">Agrega 1 resp.</text>
+</g>
+
+<!-- OpenSearch -->
+<g class="svc-card" transform="translate(170,322)">
+  <rect x="0" y="0" width="106" height="70" rx="8" fill="#1a2a1e" stroke="#3e7b4e" stroke-width="1"/>
+  <circle cx="53" cy="24" r="15" fill="#232f1e" stroke="#3b82f6" stroke-width="1.5"/>
+  <circle cx="50" cy="22" r="8" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <line x1="56" y1="28" x2="62" y2="34" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="53" y="52" class="svc-label">OpenSearch SLS</text>
+  <text x="53" y="62" class="svc-sublabel">Full-text · Geo</text>
+</g>
+
+<!-- ElastiCache -->
+<g class="svc-card" transform="translate(50,412)">
+  <rect x="0" y="0" width="100" height="70" rx="8" fill="#1a2a1e" stroke="#3e7b4e" stroke-width="1"/>
+  <circle cx="50" cy="24" r="15" fill="#232f1e" stroke="#e05252" stroke-width="1.5"/>
+  <ellipse cx="50" cy="20" rx="12" ry="6" fill="#232f1e" stroke="#e05252" stroke-width="1.5"/>
+  <line x1="38" y1="20" x2="38" y2="30" stroke="#e05252" stroke-width="1.5"/>
+  <line x1="62" y1="20" x2="62" y2="30" stroke="#e05252" stroke-width="1.5"/>
+  <ellipse cx="50" cy="30" rx="12" ry="6" fill="#232f1e" stroke="#e05252" stroke-width="1.5"/>
+  <text x="50" y="52" class="svc-label">ElastiCache SLS</text>
+  <text x="50" y="62" class="svc-sublabel">Redis · &lt;3ms</text>
+</g>
+
+<!-- Aurora SLS v2 (búsqueda) -->
+<g class="svc-card" transform="translate(170,412)">
+  <rect x="0" y="0" width="106" height="70" rx="8" fill="#1a2a1e" stroke="#3e7b4e" stroke-width="1"/>
+  <circle cx="53" cy="24" r="15" fill="#232f1e" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="53" cy="19" rx="10" ry="5" fill="#232f1e" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="43" y1="19" x2="43" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="63" y1="19" x2="63" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="53" cy="29" rx="10" ry="5" fill="#232f1e" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="53" y="52" class="svc-label">Aurora SLS v2</text>
+  <text x="53" y="62" class="svc-sublabel">Catálogo props.</text>
+</g>
+
+<!-- S3 + CloudFront fotos -->
+<g class="svc-card" transform="translate(110,502)">
+  <rect x="0" y="0" width="106" height="70" rx="8" fill="#1a2a1e" stroke="#3e7b4e" stroke-width="1"/>
+  <circle cx="53" cy="24" r="15" fill="#232f1e" stroke="#3ecf8e" stroke-width="1.5"/>
+  <circle cx="46" cy="26" r="6" fill="none" stroke="#3ecf8e" stroke-width="1.5"/>
+  <path d="M38 36 L50 22 L56 30 L60 25 L68 36" fill="none" stroke="#3ecf8e" stroke-width="1.5"/>
+  <text x="53" y="52" class="svc-label">S3 + CloudFront</text>
+  <text x="53" y="62" class="svc-sublabel">Fotos · Assets</text>
+</g>
+
+<!-- ── MS-2 RESERVACIONES ─────────────────────────────── -->
+<rect x="356" y="294" width="310" height="350" rx="10" fill="#1e1a0a" stroke="#7a6b20" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="370" y="314" class="domain-label" fill="#f0c040">MS-2 · RESERVACIONES</text>
+
+<!-- Lambda Reservas -->
+<g class="svc-card" transform="translate(378,322)">
+  <rect x="0" y="0" width="100" height="70" rx="8" fill="#2a2410" stroke="#7b6b20" stroke-width="1"/>
+  <circle cx="50" cy="24" r="16" fill="#342e14" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M42 30 L48 16 L52 24 L56 18 L62 30" fill="none" stroke="#f0a84e" stroke-width="1.8" stroke-linecap="round"/>
+  <text x="50" y="52" class="svc-label">Lambda</text>
+  <text x="50" y="62" class="svc-sublabel">Reservaciones</text>
+</g>
+
+<!-- Step Functions -->
+<g class="svc-card" transform="translate(494,322)">
+  <rect x="0" y="0" width="110" height="70" rx="8" fill="#2a2410" stroke="#7b6b20" stroke-width="1"/>
+  <circle cx="55" cy="24" r="16" fill="#342e14" stroke="#e05252" stroke-width="1.5"/>
+  <!-- State machine icon -->
+  <circle cx="46" cy="20" r="4" fill="none" stroke="#e05252" stroke-width="1.5"/>
+  <circle cx="64" cy="20" r="4" fill="none" stroke="#e05252" stroke-width="1.5"/>
+  <circle cx="55" cy="32" r="4" fill="none" stroke="#e05252" stroke-width="1.5"/>
+  <line x1="50" y1="20" x2="60" y2="20" stroke="#e05252" stroke-width="1"/>
+  <line x1="49" y1="23" x2="57" y2="29" stroke="#e05252" stroke-width="1"/>
+  <line x1="61" y1="23" x2="57" y2="29" stroke="#e05252" stroke-width="1"/>
+  <text x="55" y="52" class="svc-label">Step Functions</text>
+  <text x="55" y="62" class="svc-sublabel">Saga orquestada</text>
+</g>
+
+<!-- DynamoDB reservas -->
+<g class="svc-card" transform="translate(378,412)">
+  <rect x="0" y="0" width="100" height="70" rx="8" fill="#2a2410" stroke="#7b6b20" stroke-width="1"/>
+  <circle cx="50" cy="24" r="15" fill="#342e14" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="50" cy="19" rx="10" ry="5" fill="#342e14" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="40" y1="19" x2="40" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="60" y1="19" x2="60" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="50" cy="29" rx="10" ry="5" fill="#342e14" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="50" y="52" class="svc-label">DynamoDB OD</text>
+  <text x="50" y="62" class="svc-sublabel">Reservas · TTL lock</text>
+</g>
+
+<!-- EventBridge -->
+<g class="svc-card" transform="translate(494,412)">
+  <rect x="0" y="0" width="110" height="70" rx="8" fill="#2a2410" stroke="#7b6b20" stroke-width="1"/>
+  <circle cx="55" cy="24" r="16" fill="#342e14" stroke="#e84d9e" stroke-width="1.5"/>
+  <path d="M43 24 L50 16 L55 22 L60 14 L67 24" fill="none" stroke="#e84d9e" stroke-width="2" stroke-linecap="round"/>
+  <line x1="43" y1="28" x2="67" y2="28" stroke="#e84d9e" stroke-width="1" opacity="0.5"/>
+  <line x1="43" y1="32" x2="67" y2="32" stroke="#e84d9e" stroke-width="1" opacity="0.3"/>
+  <text x="55" y="52" class="svc-label">EventBridge</text>
+  <text x="55" y="62" class="svc-sublabel">Bus dominio</text>
+</g>
+
+<!-- SQS FIFO -->
+<g class="svc-card" transform="translate(434,502)">
+  <rect x="0" y="0" width="106" height="70" rx="8" fill="#2a2410" stroke="#7b6b20" stroke-width="1"/>
+  <circle cx="53" cy="24" r="15" fill="#342e14" stroke="#f0a84e" stroke-width="1.5"/>
+  <!-- Queue icon -->
+  <rect x="40" y="18" width="26" height="8" rx="2" fill="none" stroke="#f0a84e" stroke-width="1.5"/>
+  <rect x="40" y="24" width="26" height="8" rx="2" fill="none" stroke="#f0a84e" stroke-width="1.5"/>
+  <line x1="66" y1="22" x2="72" y2="22" stroke="#f0a84e" stroke-width="1.5"/>
+  <text x="53" y="52" class="svc-label">SQS FIFO</text>
+  <text x="53" y="62" class="svc-sublabel">Dedup · Exacto ×1</text>
+</g>
+
+<!-- ── MS-3 PAGOS ──────────────────────────────────────── -->
+<rect x="684" y="294" width="250" height="220" rx="10" fill="#1e0a1a" stroke="#7a3070" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="698" y="314" class="domain-label" fill="#e05cce">MS-3 · PAGOS</text>
+
+<!-- Lambda Pagos -->
+<g class="svc-card" transform="translate(702,322)">
+  <rect x="0" y="0" width="96" height="70" rx="8" fill="#2a1028" stroke="#7b3070" stroke-width="1"/>
+  <circle cx="48" cy="24" r="16" fill="#341430" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M40 30 L46 16 L50 24 L54 18 L60 30" fill="none" stroke="#f0a84e" stroke-width="1.8" stroke-linecap="round"/>
+  <text x="48" y="52" class="svc-label">Lambda Pagos</text>
+  <text x="48" y="62" class="svc-sublabel">Stripe · idempotente</text>
+</g>
+
+<!-- Aurora SLS pagos -->
+<g class="svc-card" transform="translate(808,322)">
+  <rect x="0" y="0" width="102" height="70" rx="8" fill="#2a1028" stroke="#7b3070" stroke-width="1"/>
+  <circle cx="51" cy="24" r="15" fill="#341430" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="51" cy="19" rx="10" ry="5" fill="#341430" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="41" y1="19" x2="41" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="61" y1="19" x2="61" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="51" cy="29" rx="10" ry="5" fill="#341430" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="51" y="52" class="svc-label">Aurora SLS v2</text>
+  <text x="51" y="62" class="svc-sublabel">Pagos · ACID</text>
+</g>
+
+<!-- Lambda Notificaciones -->
+<g class="svc-card" transform="translate(702,412)">
+  <rect x="0" y="0" width="96" height="70" rx="8" fill="#2a1028" stroke="#7b3070" stroke-width="1"/>
+  <circle cx="48" cy="24" r="16" fill="#341430" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M40 30 L46 16 L50 24 L54 18 L60 30" fill="none" stroke="#f0a84e" stroke-width="1.8" stroke-linecap="round"/>
+  <text x="48" y="52" class="svc-label">Lambda Notif.</text>
+  <text x="48" y="62" class="svc-sublabel">SES · SNS · Push</text>
+</g>
+
+<!-- SNS -->
+<g class="svc-card" transform="translate(808,412)">
+  <rect x="0" y="0" width="102" height="70" rx="8" fill="#2a1028" stroke="#7b3070" stroke-width="1"/>
+  <circle cx="51" cy="24" r="15" fill="#341430" stroke="#e05252" stroke-width="1.5"/>
+  <path d="M38 30 L44 16 L51 26 L58 16 L64 30" fill="none" stroke="#e05252" stroke-width="1.8"/>
+  <text x="51" y="52" class="svc-label">SNS + SES</text>
+  <text x="51" y="62" class="svc-sublabel">Fan-out async</text>
+</g>
+
+<!-- ── MS-4 USUARIOS ──────────────────────────────────── -->
+<rect x="952" y="294" width="300" height="220" rx="10" fill="#0a1020" stroke="#304070" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="966" y="314" class="domain-label" fill="#6090e0">MS-4 · USUARIOS / AUTH</text>
+
+<!-- Lambda Usuarios -->
+<g class="svc-card" transform="translate(970,322)">
+  <rect x="0" y="0" width="96" height="70" rx="8" fill="#10182a" stroke="#304070" stroke-width="1"/>
+  <circle cx="48" cy="24" r="16" fill="#14203a" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M40 30 L46 16 L50 24 L54 18 L60 30" fill="none" stroke="#f0a84e" stroke-width="1.8" stroke-linecap="round"/>
+  <text x="48" y="52" class="svc-label">Lambda</text>
+  <text x="48" y="62" class="svc-sublabel">Usuarios · Auth</text>
+</g>
+
+<!-- Cognito User Pools -->
+<g class="svc-card" transform="translate(1078,322)">
+  <rect x="0" y="0" width="110" height="70" rx="8" fill="#10182a" stroke="#304070" stroke-width="1"/>
+  <circle cx="55" cy="24" r="16" fill="#14203a" stroke="#9b6fd4" stroke-width="1.5"/>
+  <circle cx="55" cy="20" r="7" fill="none" stroke="#9b6fd4" stroke-width="2"/>
+  <path d="M43 34 Q49 26 55 32 Q61 26 67 34" fill="none" stroke="#9b6fd4" stroke-width="2"/>
+  <text x="55" y="52" class="svc-label">Cognito</text>
+  <text x="55" y="62" class="svc-sublabel">User Pools · JWT</text>
+</g>
+
+<!-- Aurora SLS usuarios -->
+<g class="svc-card" transform="translate(970,412)">
+  <rect x="0" y="0" width="96" height="70" rx="8" fill="#10182a" stroke="#304070" stroke-width="1"/>
+  <circle cx="48" cy="24" r="15" fill="#14203a" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="48" cy="19" rx="10" ry="5" fill="#14203a" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="38" y1="19" x2="38" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="58" y1="19" x2="58" y2="29" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="48" cy="29" rx="10" ry="5" fill="#14203a" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="48" y="52" class="svc-label">Aurora SLS v2</text>
+  <text x="48" y="62" class="svc-sublabel">Perfiles · KYC</text>
+</g>
+
+<!-- Secrets Manager -->
+<g class="svc-card" transform="translate(1078,412)">
+  <rect x="0" y="0" width="110" height="70" rx="8" fill="#10182a" stroke="#304070" stroke-width="1"/>
+  <circle cx="55" cy="24" r="15" fill="#14203a" stroke="#e05252" stroke-width="1.5"/>
+  <rect x="46" y="17" width="18" height="14" rx="3" fill="none" stroke="#e05252" stroke-width="1.5"/>
+  <circle cx="55" cy="24" r="4" fill="#e05252"/>
+  <line x1="55" y1="24" x2="55" y2="30" stroke="#e05252" stroke-width="1.5"/>
+  <text x="55" y="52" class="svc-label">Secrets Manager</text>
+  <text x="55" y="62" class="svc-sublabel">Credenciales rotación</text>
+</g>
+
+<!-- ── MS-5 MENSAJERÍA + MS-6 REVIEWS ─────────────────── -->
+<rect x="28" y="660" width="590" height="100" rx="10" fill="#0a1e1a" stroke="#206050" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="42" y="678" class="domain-label" fill="#40c090">MS-5 · MENSAJERÍA &amp; MS-6 · REVIEWS (no críticos)</text>
+
+<!-- WS API Mensajería -->
+<g class="svc-card" transform="translate(46,686)">
+  <rect x="0" y="0" width="110" height="60" rx="8" fill="#102018" stroke="#206050" stroke-width="1"/>
+  <circle cx="55" cy="22" r="14" fill="#142a20" stroke="#4a9e7e" stroke-width="1.5"/>
+  <path d="M44 22 Q50 14 56 22 Q62 30 68 22" fill="none" stroke="#4a9e7e" stroke-width="2"/>
+  <text x="55" y="46" class="svc-label">Lambda Mensajería</text>
+  <text x="55" y="56" class="svc-sublabel">WS API · Chat RT</text>
+</g>
+
+<!-- DynamoDB mensajería -->
+<g class="svc-card" transform="translate(174,686)">
+  <rect x="0" y="0" width="110" height="60" rx="8" fill="#102018" stroke="#206050" stroke-width="1"/>
+  <circle cx="55" cy="22" r="14" fill="#142a20" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="55" cy="18" rx="9" ry="4" fill="#142a20" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="46" y1="18" x2="46" y2="26" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="64" y1="18" x2="64" y2="26" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="55" cy="26" rx="9" ry="4" fill="#142a20" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="55" y="46" class="svc-label">DynamoDB OD</text>
+  <text x="55" y="56" class="svc-sublabel">Historial chat</text>
+</g>
+
+<!-- Lambda Reviews -->
+<g class="svc-card" transform="translate(302,686)">
+  <rect x="0" y="0" width="110" height="60" rx="8" fill="#102018" stroke="#206050" stroke-width="1"/>
+  <circle cx="55" cy="22" r="14" fill="#142a20" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M46 28 L50 14 L54 22 L58 16 L64 28" fill="none" stroke="#f0a84e" stroke-width="1.8" stroke-linecap="round"/>
+  <text x="55" y="46" class="svc-label">Lambda Reviews</text>
+  <text x="55" y="56" class="svc-sublabel">try/catch · circuit bkr</text>
+</g>
+
+<!-- DynamoDB reviews -->
+<g class="svc-card" transform="translate(430,686)">
+  <rect x="0" y="0" width="110" height="60" rx="8" fill="#102018" stroke="#206050" stroke-width="1"/>
+  <circle cx="55" cy="22" r="14" fill="#142a20" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="55" cy="18" rx="9" ry="4" fill="#142a20" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="46" y1="18" x2="46" y2="26" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="64" y1="18" x2="64" y2="26" stroke="#3b82f6" stroke-width="1.5"/>
+  <ellipse cx="55" cy="26" rx="9" ry="4" fill="#142a20" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="55" y="46" class="svc-label">DynamoDB OD</text>
+  <text x="55" y="56" class="svc-sublabel">Reviews · Scores</text>
+</g>
+
+<!-- ── OBSERVABILIDAD ─────────────────────────────────── -->
+<rect x="640" y="660" width="612" height="100" rx="10" fill="#0a0a14" stroke="#30304a" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="654" y="678" class="domain-label" fill="#7070b0">OBSERVABILIDAD &amp; SEGURIDAD</text>
+
+<!-- CloudWatch -->
+<g class="svc-card" transform="translate(658,686)">
+  <rect x="0" y="0" width="110" height="60" rx="8" fill="#10101e" stroke="#30304a" stroke-width="1"/>
+  <circle cx="55" cy="22" r="14" fill="#14142a" stroke="#f0a84e" stroke-width="1.5"/>
+  <path d="M44 28 L48 18 L52 24 L56 20 L60 26 L64 22 L68 28" fill="none" stroke="#f0a84e" stroke-width="1.5"/>
+  <text x="55" y="46" class="svc-label">CloudWatch</text>
+  <text x="55" y="56" class="svc-sublabel">Logs · Alarmas</text>
+</g>
+
+<!-- X-Ray -->
+<g class="svc-card" transform="translate(784,686)">
+  <rect x="0" y="0" width="100" height="60" rx="8" fill="#10101e" stroke="#30304a" stroke-width="1"/>
+  <circle cx="50" cy="22" r="14" fill="#14142a" stroke="#e05252" stroke-width="1.5"/>
+  <line x1="40" y1="16" x2="60" y2="32" stroke="#e05252" stroke-width="2"/>
+  <line x1="60" y1="16" x2="40" y2="32" stroke="#e05252" stroke-width="2"/>
+  <circle cx="50" cy="24" r="5" fill="#14142a" stroke="#e05252" stroke-width="1.5"/>
+  <text x="50" y="46" class="svc-label">AWS X-Ray</text>
+  <text x="50" y="56" class="svc-sublabel">Trazas E2E</text>
+</g>
+
+<!-- AWS IAM -->
+<g class="svc-card" transform="translate(898,686)">
+  <rect x="0" y="0" width="100" height="60" rx="8" fill="#10101e" stroke="#30304a" stroke-width="1"/>
+  <circle cx="50" cy="22" r="14" fill="#14142a" stroke="#e05252" stroke-width="1.5"/>
+  <rect x="42" y="16" width="16" height="12" rx="3" fill="none" stroke="#e05252" stroke-width="1.5"/>
+  <circle cx="50" cy="22" r="3" fill="#e05252"/>
+  <text x="50" y="46" class="svc-label">AWS IAM</text>
+  <text x="50" y="56" class="svc-sublabel">Roles · Policies</text>
+</g>
+
+<!-- CodePipeline -->
+<g class="svc-card" transform="translate(1010,686)">
+  <rect x="0" y="0" width="110" height="60" rx="8" fill="#10101e" stroke="#30304a" stroke-width="1"/>
+  <circle cx="55" cy="22" r="14" fill="#14142a" stroke="#3b82f6" stroke-width="1.5"/>
+  <circle cx="44" cy="22" r="4" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+  <circle cx="55" cy="22" r="4" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+  <circle cx="66" cy="22" r="4" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="48" y1="22" x2="51" y2="22" stroke="#3b82f6" stroke-width="1.5"/>
+  <line x1="59" y1="22" x2="62" y2="22" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="55" y="46" class="svc-label">CodePipeline</text>
+  <text x="55" y="56" class="svc-sublabel">CI/CD por Lambda</text>
+</g>
+
+<!-- ── DR REGION ──────────────────────────────────────── -->
+<rect x="28" y="778" width="1224" height="58" rx="10" fill="#1a0a0a" stroke="#6b2020" stroke-width="1.5" stroke-dasharray="6 3"/>
+<text x="42" y="795" class="domain-label" fill="#cf4040">DR · us-west-2 — Active-Passive · Failover &lt;60s</text>
+
+<g class="svc-card" transform="translate(42,800)">
+  <rect x="0" y="0" width="130" height="28" rx="6" fill="#2a1010" stroke="#6b2020" stroke-width="1"/>
+  <text x="65" y="12" class="svc-label">Aurora Global DB</text>
+  <text x="65" y="22" class="svc-sublabel">RPO &lt;1s</text>
+</g>
+<g class="svc-card" transform="translate(188,800)">
+  <rect x="0" y="0" width="130" height="28" rx="6" fill="#2a1010" stroke="#6b2020" stroke-width="1"/>
+  <text x="65" y="12" class="svc-label">DynamoDB Global Tables</text>
+  <text x="65" y="22" class="svc-sublabel">Multi-region</text>
+</g>
+<g class="svc-card" transform="translate(334,800)">
+  <rect x="0" y="0" width="110" height="28" rx="6" fill="#2a1010" stroke="#6b2020" stroke-width="1"/>
+  <text x="55" y="12" class="svc-label">S3 Cross-Region</text>
+  <text x="55" y="22" class="svc-sublabel">CRR automático</text>
+</g>
+<g class="svc-card" transform="translate(460,800)">
+  <rect x="0" y="0" width="110" height="28" rx="6" fill="#2a1010" stroke="#6b2020" stroke-width="1"/>
+  <text x="55" y="12" class="svc-label">Lambda warm</text>
+  <text x="55" y="22" class="svc-sublabel">Prov. Concurrency</text>
+</g>
+<g class="svc-card" transform="translate(586,800)">
+  <rect x="0" y="0" width="110" height="28" rx="6" fill="#2a1010" stroke="#6b2020" stroke-width="1"/>
+  <text x="55" y="12" class="svc-label">Route 53</text>
+  <text x="55" y="22" class="svc-sublabel">Failover automático</text>
+</g>
+<g class="svc-card" transform="translate(712,800)">
+  <rect x="0" y="0" width="130" height="28" rx="6" fill="#2a1010" stroke="#6b2020" stroke-width="1"/>
+  <text x="65" y="12" class="svc-label">OpenSearch replica</text>
+  <text x="65" y="22" class="svc-sublabel">Índice replicado</text>
+</g>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CONEXIONES / FLECHAS                                   -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- User → Route53 -->
+<line x1="605" y1="68" x2="314" y2="68" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<!-- User → CloudFront -->
+<line x1="645" y1="68" x2="874" y2="68" class="arrow-sync" marker-end="url(#ah-blue)"/>
+
+<!-- Route53 → API GW -->
+<path d="M274 96 L274 140 L485 140 L485 162" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<!-- CloudFront → API GW -->
+<path d="M874 96 L874 140 L795 140 L795 162" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<!-- CloudFront → API GW WebSocket -->
+<path d="M900 96 L900 140 L850 140 L850 162" class="arrow-sync" stroke="#4db8ff" stroke-width="1" fill="none" marker-end="url(#ah-blue)"/>
+
+<!-- Lambda@Edge → API GW (validación) -->
+<path d="M1174 96 L1174 140 L540 140 L540 162" class="arrow-async" stroke-dasharray="4 3" marker-end="url(#ah-orange)"/>
+
+<!-- API GW → Lambda BFF -->
+<path d="M485 238 L485 260 L100 260 L100 320" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<!-- Label -->
+<text x="290" y="255" class="arrow-label" text-anchor="middle">Peticion busqueda</text>
+
+<!-- API GW → Lambda Reservas -->
+<path d="M540 238 L540 260 L428 260 L428 320" class="arrow-sync" marker-end="url(#ah-blue)"/>
+
+<!-- API GW WebSocket → Lambda Mensajeria -->
+<path d="M795 238 L795 260 L640 260 L640 680 L156 680 L156 684" class="arrow-async" marker-end="url(#ah-orange)"/>
+
+<!-- Lambda BFF → ElastiCache (interno) -->
+<line x1="100" y1="392" x2="100" y2="410" class="arrow-data" marker-end="url(#ah-green)"/>
+<!-- Lambda BFF → OpenSearch -->
+<path d="M150" y1="357" x2="220" y2="357 M150 357 L170 357" class="arrow-data"/>
+<line x1="150" y1="357" x2="170" y2="357" class="arrow-data" marker-end="url(#ah-green)"/>
+<!-- Lambda BFF → Aurora (búsqueda) -->
+<line x1="223" y1="392" x2="223" y2="410" class="arrow-data" marker-end="url(#ah-green)"/>
+
+<!-- Lambda BFF → Reviews (try/catch) -->
+<path d="M128" y1="357 M128 392 L128 410" class="arrow-async" stroke-dasharray="3 3" stroke="#D85A30"/>
+<line x1="128" y1="357" x2="358" y2="700" stroke="#D85A30" stroke-width="1" fill="none" stroke-dasharray="4 3" marker-end="url(#ah-gray)" opacity="0.6"/>
+
+<!-- Lambda Reservas → Step Functions -->
+<line x1="478" y1="357" x2="549" y2="357" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<!-- Lambda Reservas → DynamoDB -->
+<line x1="428" y1="392" x2="428" y2="410" class="arrow-data" marker-end="url(#ah-green)"/>
+<!-- Step Functions → SQS FIFO -->
+<path d="M549 392 L549 400 L487 400 L487 500" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<!-- Step Functions → EventBridge (confirmar) -->
+<line x1="604" y1="392" x2="604" y2="410" class="arrow-event" marker-end="url(#ah-pink)"/>
+
+<!-- EventBridge → Lambda Notificaciones (fan-out) -->
+<path d="M604 482 L604 490 L750 490 L750 412" class="arrow-event" marker-end="url(#ah-pink)"/>
+<text x="680" y="487" class="arrow-label">ReservaConfirmada</text>
+<!-- EventBridge → Lambda Reviews -->
+<path d="M550 482 L550 492 L358 492 L358 700" class="arrow-event" stroke="#e84d9e" stroke-width="1" fill="none" stroke-dasharray="4 3" marker-end="url(#ah-pink)"/>
+<!-- EventBridge → Lambda Mensajeria -->
+<path d="M544 480 L544 495 L100 495 L100 684" class="arrow-event" stroke="#e84d9e" stroke-width="1" fill="none" stroke-dasharray="4 3" marker-end="url(#ah-pink)"/>
+
+<!-- SQS → Lambda Pagos (trigger) -->
+<path d="M600 537 L734 537 L734 357" class="arrow-sync" marker-end="url(#ah-blue)"/>
+<text x="668" y="530" class="arrow-label">trigger pago</text>
+
+<!-- Lambda Notif → SNS -->
+<line x1="852" y1="447" x2="860" y2="447" class="arrow-sync" marker-end="url(#ah-blue)"/>
+
+<!-- Lambda Usuarios ← API GW (indirecto) -->
+<path d="M595" y1="238 M595 238 L1018 238 L1018 320" class="arrow-sync"/>
+<path d="M595 238 L1018 238 L1018 320" stroke="#4db8ff" stroke-width="1" fill="none" marker-end="url(#ah-blue)" opacity="0.5"/>
+
+<!-- Lambda Usuarios → Cognito -->
+<line x1="1066" y1="357" x2="1078" y2="357" class="arrow-data" marker-end="url(#ah-green)"/>
+<!-- Lambda Usuarios → Aurora -->
+<line x1="1018" y1="392" x2="1018" y2="410" class="arrow-data" marker-end="url(#ah-green)"/>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PERFORMANCE BADGES                                     -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- Badge búsqueda -->
+<g transform="translate(162,290)">
+  <rect x="0" y="0" width="130" height="40" rx="8" fill="#0a1e0a" stroke="#3ecf8e" stroke-width="1.5"/>
+  <!-- Clock icon -->
+  <circle cx="16" cy="20" r="10" fill="none" stroke="#3ecf8e" stroke-width="1.5"/>
+  <line x1="16" y1="14" x2="16" y2="20" stroke="#3ecf8e" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="16" y1="20" x2="21" y2="23" stroke="#3ecf8e" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="68" y="15" class="perf-badge" text-anchor="middle">&lt; 800ms</text>
+  <text x="68" y="30" class="perf-sub" text-anchor="middle">Busqueda completa</text>
+</g>
+
+<!-- Badge reserva -->
+<g transform="translate(525,290)">
+  <rect x="0" y="0" width="120" height="40" rx="8" fill="#1e1400" stroke="#f0c040" stroke-width="1.5"/>
+  <circle cx="16" cy="20" r="10" fill="none" stroke="#f0c040" stroke-width="1.5"/>
+  <line x1="16" y1="14" x2="16" y2="20" stroke="#f0c040" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="16" y1="20" x2="21" y2="23" stroke="#f0c040" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="62" y="15" class="perf-badge" fill="#f0c040" text-anchor="middle">Saga</text>
+  <text x="62" y="30" class="perf-sub" fill="#f0c040" text-anchor="middle">4 pasos + rollback</text>
+</g>
+
+<!-- Badge DR -->
+<g transform="translate(724,778)">
+  <rect x="0" y="0" width="120" height="28" rx="6" fill="#2a0a0a" stroke="#cf4040" stroke-width="1.2"/>
+  <text x="60" y="11" class="svc-label" fill="#cf4040" text-anchor="middle">RTO &lt; 60s</text>
+  <text x="60" y="22" class="svc-sublabel" fill="#a03030" text-anchor="middle">RPO &lt; 1s (Aurora Global)</text>
+</g>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- LEYENDA FLECHAS                                        -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<rect x="28" y="770" width="0" height="0" rx="4"/>
+
+<g transform="translate(860,786)">
+  <line x1="0" y1="10" x2="30" y2="10" stroke="#4db8ff" stroke-width="1.5" marker-end="url(#ah-blue)"/>
+  <text x="36" y="14" class="svc-sublabel">Sincrona HTTP</text>
+  <line x1="130" y1="10" x2="160" y2="10" stroke="#f0a84e" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#ah-orange)"/>
+  <text x="166" y="14" class="svc-sublabel">Asincrona</text>
+  <line x1="248" y1="10" x2="278" y2="10" stroke="#e84d9e" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#ah-pink)"/>
+  <text x="284" y="14" class="svc-sublabel">Evento (EB)</text>
+  <line x1="366" y1="10" x2="396" y2="10" stroke="#3ecf8e" stroke-width="1.5" marker-end="url(#ah-green)"/>
+  <text x="402" y="14" class="svc-sublabel">DB lectura/escritura</text>
+</g>
+
+</svg>
+</div>
+
+</body>
+</html>
